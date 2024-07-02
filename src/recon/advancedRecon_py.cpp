@@ -16,13 +16,9 @@ using CplxScalar = std::complex<Scalar>;
 
 
 template <typename T, int rank>
-Eigen::Tensor<T, rank> numpyToTensor(py::array_t<T> array) {
+Eigen::Tensor<T, rank, Eigen::ColMajor> numpyToTensor(py::array_t<T, py::array::c_style | py::array::forcecast> array) {
     // Request a buffer descriptor from the NumPy array
     py::buffer_info buf = array.request();
-    
-    for (int i = 0; i < 10; i++) {
-       // std::cout << "numpy[" << i << "] = " << array(i) << std::endl;
-    }
     
     if (buf.ndim != rank) {
         std::ostringstream oss;
@@ -34,57 +30,75 @@ Eigen::Tensor<T, rank> numpyToTensor(py::array_t<T> array) {
         oss << "Invalid item size: " << buf.itemsize << ". Item size must be " << sizeof(T) << ".";
         throw std::runtime_error(oss.str());
     }
-
-    for (const auto el : buf.strides) {
-        std::cout << "stride " << el << std::endl;
-    }
     
-    // Prepare dimensions
-    std::array<Eigen::Index, rank> dimensions;
+    // Create an Eigen::Tensor with the same dimensions as the NumPy array
+    Eigen::DSizes<Eigen::DenseIndex, rank> dimensions;
+    Eigen::array<Eigen::DenseIndex, rank> strides;
+    Eigen::array<int, rank> shuffles;
     for (int i = 0; i < rank; ++i) {
         dimensions[i] = buf.shape[i];
+        strides[i] = buf.strides[i] / sizeof(T);
+        shuffles[i] = rank - 1 - i;
     }
+    Eigen::Tensor<T, rank, Eigen::ColMajor> out(dimensions);
 
-    // Map the data
+    // Copy data from NumPy array to Eigen::Tensor using a map
     T* ptr = static_cast<T*>(buf.ptr);
-    std::cout << "pointer is " << ptr << " with itemsize " << buf.itemsize << std::endl;
-    Eigen::TensorMap<Eigen::Tensor<T, rank>> tensor(ptr, dimensions);
-    
-    // Copy the data to an Eigen Tensor
-    Eigen::Tensor<T, rank> out = tensor;
-    
+    Eigen::TensorMap<Eigen::Tensor<T, rank, Eigen::RowMajor>> map(ptr, dimensions);
+    out = map.shuffle(shuffles).swap_layout();
+
     return out;
 }
 
-
-template<typename T, int rank>
-py::array_t<T> tensorToNumpy(const Eigen::Tensor<T, rank>& tensor) {
-    std::array<ssize_t, rank> shape;
-    std::array<ssize_t, rank> strides;
-
-    for (int i = 0; i < rank; ++i) {
-        shape[i] = tensor.dimension(i);
-    }
-
-    ssize_t stride = sizeof(T);
+template <typename T, int rank>
+py::array_t<T> tensorToNumpy(const Eigen::Tensor<T, rank, Eigen::ColMajor>& tensor) {
+    // Get the dimensions of the tensor
+    const auto& dims = tensor.dimensions();
+    
+    // Create a vector to hold the shape for NumPy
+    std::vector<ssize_t> shape(rank);
+    std::vector<ssize_t> strides(rank);
+    
+    // Calculate the strides and total size
+    ssize_t total_size = 1;
     for (int i = rank - 1; i >= 0; --i) {
-        strides[i] = stride;
-        stride *= tensor.dimension(i);
+        shape[i] = dims[i];
+        strides[i] = total_size * sizeof(T);
+        total_size *= dims[i];
     }
 
-    return py::array_t<T>(shape, strides, tensor.data());
+    // Create a NumPy array
+    py::array_t<T> numpy_array(shape, strides);
+
+    // Get a pointer to the NumPy array's data
+    auto buf = numpy_array.request();
+    T* ptr = static_cast<T*>(buf.ptr);
+
+    // Create an Eigen::TensorMap of the NumPy data (as RowMajor)
+    Eigen::TensorMap<Eigen::Tensor<T, rank, Eigen::RowMajor>> numpy_tensor(ptr, dims);
+
+    // Create shuffling array
+    Eigen::array<int, rank> shuffle;
+    for (int i = 0; i < rank; ++i) {
+        shuffle[i] = rank - 1 - i;
+    }
+
+    // Copy data from Eigen tensor to NumPy array, with layout conversion
+    numpy_tensor = tensor.shuffle(shuffle).swap_layout();
+
+    return numpy_array;
 }
 
-py::array_t<CplxScalar> fancyFunction(py::array_t<CplxScalar> numpyArray) {
+
+py::array_t<Scalar> fancyFunction(py::array_t<Scalar> numpyArray, Scalar value) {
     // Copy input to Eigen Tensor
-    Eigen::Tensor<CplxScalar, 3> someTensor = numpyToTensor<CplxScalar, 3>(numpyArray);
+    Eigen::Tensor<Scalar, 3> someTensor = numpyToTensor<Scalar, 3>(numpyArray);
     
     // Do something with it, perhaps fancier than this...
-    using namespace std::complex_literals;
-    modifyTensor(someTensor, 1.0f + 2.6if);
+    modifyTensor(someTensor, value);
     
     // Convert back to numpy and return. No copy.
-    py::array_t<CplxScalar> out = tensorToNumpy(someTensor);
+    py::array_t<Scalar> out = tensorToNumpy(someTensor);
     return out;
 }
 
@@ -92,6 +106,6 @@ py::array_t<CplxScalar> fancyFunction(py::array_t<CplxScalar> numpyArray) {
 PYBIND11_MODULE(advanced_recon_py, m) {
     m.doc() = "Here are some advanced reconstruction routines";
 
-    m.def("fancyFunction", &fancyFunction, "Separate fat water");
+    m.def("fancyFunction", &fancyFunction, "Manipulate a numpy array", py::arg("numpyArray"), py::arg("value"));
 
 }
