@@ -97,7 +97,7 @@ py::array_t<Scalar> fancyFunction(py::array_t<Scalar> numpyArray, Scalar value) 
     // Do something with it, perhaps fancier than this...
     modifyTensor(someTensor, value);
     
-    // Convert back to numpy and return. No copy.
+    // Convert back to numpy and return. Makes a copy.
     py::array_t<Scalar> out = tensorToNumpy(someTensor);
     return out;
 }
