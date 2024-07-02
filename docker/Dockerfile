@@ -21,6 +21,7 @@ RUN apt-get update &&  apt-get -qqy --no-install-suggests --no-install-recommend
 
 RUN add-apt-repository ppa:deadsnakes/ppa
 RUN apt-get update && apt-get -qqy install \
+    python3.10-distutils \
     python3.11 \
     python3.11-dev \
     python3.10 \
@@ -36,12 +37,13 @@ RUN curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -xvj bi
 RUN micromamba shell init --shell=bash --prefix=$MAMBA_ROOT_PREFIX
 
 # Create environments
-RUN micromamba create -n py3.9 python=3.9 -y -c conda-forge
-RUN micromamba create -n py3.10 python=3.10 -y -c conda-forge
-RUN micromamba create -n py3.11 python=3.11 -y -c conda-forge
+ADD envs /tmp/envs/
+RUN micromamba env create -f /tmp/envs/py3.9.yml
+RUN micromamba env create -f /tmp/envs/py3.10.yml
+RUN micromamba env create -f /tmp/envs/py3.11.yml
 
 # Activate py3.10 environment by default
-RUN echo "micromamba activate py3.10" >> ~/.bashrc
+RUN echo "micromamba activate pybind-310" >> ~/.bashrc
 
 # Clean up
 RUN micromamba clean --all --yes

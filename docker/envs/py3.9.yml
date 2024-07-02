@@ -1,0 +1,7 @@
+name: pybind-39
+channels:
+  - conda-forge
+dependencies:
+  - python=3.9
+  - setuptools # Includes distutils
+  - pybind11

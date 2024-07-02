@@ -1,0 +1,7 @@
+name: pybind-310
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - setuptools # Includes distutils
+  - pybind11

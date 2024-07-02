@@ -1,0 +1,7 @@
+name: pybind-311
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - setuptools # Includes distutils
+  - pybind11
