@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.3)
-project(EigenExample)
+project(EigenTensorExample)
 
 # Options
 option(PY_WRAPPERS "Build Python wrappers" ON)
